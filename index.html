@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BelinTM Skins Gallery</title>
+<style>
+  :root {
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+  }
+  body {
+    margin:0;
+    padding:16px;
+    background:#f6f7fb;
+    color:#111
+  }
+  #status {
+    margin-left:8px;
+    font-size:13px;
+    color:#444
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-auto-rows: max-content;
+    grid-gap: 12px;
+    justify-content: start;
+    align-items: start;
+  }
+  .card {
+    background:#fff;
+    padding:8px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);
+    display: block;
+    gap:8px;
+    align-items:center;
+  }
+  .card img {
+    width:100%;
+    height:auto;
+    max-height: none;
+    object-fit: cover;
+    border-radius:3px;
+  }
+  .card video {
+    width:100%;
+    height:auto;
+    object-fit: contain;
+    border-radius:3px;
+    max-height: none;
+    float: none;
+  }
+  a.path{font-size:12px;color:#0366d6;word-break:break-all;text-decoration:none}
+</style>
+</head>
+<body>
+  <div id="status" style="margin-left:12px"></div>
+  <div id="gallery" class="grid"></div>
+<script>
+(async function(){
+  const STATUS = document.getElementById('status');
+  const GALLERY = document.getElementById('gallery');
+  const imgRegex = /\.(png|jpe?g|webp|gif)$/i;
+  const vidRegex = /\.(webm)$/i;
+
+  const TTL = 1000*60*10; // 10min cache
+  function setStatus(t){
+    STATUS.textContent = t || '';
+  }
+
+  function encodePath(path) {
+    return path.split('/').map(encodeURIComponent).join('/');
+  }
+
+  async function fetchTree() {
+    const api = 'https://api.github.com/repos/belintm/signs/git/trees/main?recursive=1';
+    const response = await fetch(api, { headers: { Accept: 'application/vnd.github.v3+json' }});
+    if (!response.ok) throw new Error(`GitHub API ${r.status}`);
+    return response.json();
+  }
+
+  function render(list){
+    GALLERY.innerHTML = '';
+    for(const p of list) {
+      const raw = `https://raw.githubusercontent.com/belintm/signs/main/${encodePath(p)}`;
+      const card = document.createElement('div'); card.className='card';
+      if(imgRegex.test(p)) {
+        const img = document.createElement('img'); img.loading='lazy'; img.alt=p; img.src=raw;
+        img.onerror = ()=> img.style.display='none';
+        img.addEventListener('click', () => copyPathToClipboard(raw))
+        card.appendChild(img);
+      } else {
+        const video = document.createElement('video'); video.autoplay=true; video.alt=p; video.src=raw; video.loop=true; video.muted=true;
+        video.onerror = ()=> video.style.display='none';
+        video.addEventListener('click', () => copyPathToClipboard(raw))
+        card.appendChild(video)
+      }
+      const link = document.createElement('a'); link.className='path'; link.href=raw; link.target='_blank'; link.rel='noopener'; link.textContent=p;
+      card.appendChild(link);
+      GALLERY.appendChild(card);
+    }
+  }
+
+  function copyPathToClipboard(path) {
+    navigator.clipboard.writeText(path);
+    alert(path + '\n\nPath copied to clipboard')
+  }
+
+  async function load() {
+    setStatus("Loading assets...")
+    GALLERY.innerHTML='';
+    const cacheKey = 'skins';
+    try {
+      const cached = JSON.parse(localStorage.getItem(caheKey)||'null');
+      if (cached && Date.now()-cached.t < TTL ){
+        render(cached.list);
+        return;
+      }
+    } catch(e) {
+    }
+
+    try {
+      const data = await fetchTree();
+      const tree = data.tree || [];
+      const skins = tree.filter(n=>n.type==='blob' && (imgRegex.test(n.path) || vidRegex.test(n.path))).map(n=>n.path).sort();
+      localStorage.setItem(cacheKey, JSON.stringify({t:Date.now(), list:skins}));
+      render(skins);
+    } catch(err){
+      setStatus('Error : '+err.message);
+    }
+    setStatus("")
+  }
+  load();
+})();
+</script>
+</body>
+</html>
