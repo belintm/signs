@@ -63,7 +63,6 @@
   const imgRegex = /\.(png|jpe?g|webp|gif)$/i;
   const vidRegex = /\.(webm)$/i;
 
-  const TTL = 1000*60*10; // 10min cache
   function setStatus(t){
     STATUS.textContent = t || '';
   }
@@ -72,11 +71,18 @@
     return path.split('/').map(encodeURIComponent).join('/');
   }
 
-  async function fetchTree() {
-    const api = 'https://api.github.com/repos/belintm/signs/git/trees/main?recursive=1';
-    const response = await fetch(api, { headers: { Accept: 'application/vnd.github.v3+json' }});
+  async function apiCall(path) {
+    const response = await fetch(path, { headers: { Accept: 'application/vnd.github.v3+json' }});
     if (!response.ok) throw new Error(`GitHub API ${r.status}`);
     return response.json();
+  }
+
+  async function fetchTree() {
+    return apiCall('https://api.github.com/repos/belintm/signs/git/trees/main?recursive=1');
+  }
+
+  async function fetchLatestCommitSha() {
+    return apiCall('https://api.github.com/repos/belintm/signs/commits?per_page=1&sha=main');
   }
 
   function render(list){
@@ -99,6 +105,7 @@
       card.appendChild(link);
       GALLERY.appendChild(card);
     }
+    setStatus("")
   }
 
   function copyPathToClipboard(path) {
@@ -110,25 +117,34 @@
     setStatus("Loading assets...")
     GALLERY.innerHTML='';
     const cacheKey = 'skins';
+    let latestCommitSha = '';
     try {
-      const cached = JSON.parse(localStorage.getItem(caheKey)||'null');
-      if (cached && Date.now()-cached.t < TTL ){
+      const data = await fetchLatestCommitSha();
+      if(data.length < 1) throw new Error("Latest commit not found !");
+      latestCommitSha = data[0].sha;
+    } catch(err) {
+      alert('Error : '+err.message);
+    }
+
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey)||'null');
+      if (cached && (!latestCommitSha || cached.c === latestCommitSha)) {
         render(cached.list);
         return;
       }
-    } catch(e) {
+    } catch(err) {
+      alert('Error : '+err.message);
     }
 
     try {
       const data = await fetchTree();
       const tree = data.tree || [];
       const skins = tree.filter(n=>n.type==='blob' && (imgRegex.test(n.path) || vidRegex.test(n.path))).map(n=>n.path).sort();
-      localStorage.setItem(cacheKey, JSON.stringify({t:Date.now(), list:skins}));
+      localStorage.setItem(cacheKey, JSON.stringify({c:latestCommitSha, list:skins}));
       render(skins);
     } catch(err){
       setStatus('Error : '+err.message);
     }
-    setStatus("")
   }
   load();
 })();
