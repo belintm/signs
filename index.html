@@ -63,6 +63,18 @@
   const imgRegex = /\.(png|jpe?g|webp|gif)$/i;
   const vidRegex = /\.(webm)$/i;
 
+  const videoObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        video = entry.target;
+        if (entry.isIntersecting) {
+          if(video.paused) video.play();
+          return;
+        }
+        if(!video.paused) video.pause();
+      });
+    }, {threshold: 0.8}
+  );
+
   function setStatus(t){
     STATUS.textContent = t || '';
   }
@@ -96,10 +108,12 @@
         img.addEventListener('click', () => copyPathToClipboard(raw))
         card.appendChild(img);
       } else {
-        const video = document.createElement('video'); video.autoplay=true; video.alt=p; video.src=raw; video.loop=true; video.muted=true;
+        const video = document.createElement('video'); video.alt=p; video.src=raw; video.loop=true; video.muted=true;
         video.onerror = ()=> video.style.display='none';
         video.addEventListener('click', () => copyPathToClipboard(raw))
         card.appendChild(video)
+
+        videoObserver.observe(video);
       }
       const link = document.createElement('a'); link.className='path'; link.href=raw; link.target='_blank'; link.rel='noopener'; link.textContent=p;
       card.appendChild(link);
